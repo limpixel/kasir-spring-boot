@@ -1,0 +1,632 @@
+<!DOCTYPE html>
+<html lang="id" xmlns:th="http://www.thymeleaf.org" 
+      xmlns:layout="http://www.ultraq.net.nz/thymeleaf/layout"
+      layout:decorate="~{layout}">
+<head>
+    <title>Produk - Inventory Management</title>
+</head>
+<body>
+    <div layout:fragment="content">
+        <!-- Alert Messages -->
+        <div th:if="${message}" class="alert alert-success alert-dismissible fade show" role="alert">
+            <i class="bi bi-check-circle-fill me-2"></i>
+            <span th:text="${message}"></span>
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+        
+        <!-- Header Actions -->
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h4 class="text-gray-800">Manajemen Produk</h4>
+                <small class="text-muted">Kelola inventory produk Anda</small>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-success" onclick="showAddProductModal()">
+                    <i class="bi bi-plus-circle me-2"></i>Tambah Produk
+                </button>
+                <button class="btn btn-info" onclick="refreshTable()">
+                    <i class="bi bi-arrow-clockwise me-2"></i>Refresh
+                </button>
+                <button class="btn btn-warning" onclick="exportData()">
+                    <i class="bi bi-download me-2"></i>Export
+                </button>
+            </div>
+        </div>
+        
+        <!-- Search and Filter -->
+        <div class="card shadow mb-4">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4">
+                        <div class="input-group">
+                            <span class="input-group-text">
+                                <i class="bi bi-search"></i>
+                            </span>
+                            <input type="text" class="form-control" id="searchInput" placeholder="Cari produk..." onkeyup="searchProducts()">
+                        </div>
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select" id="stockFilter" onchange="filterProducts()">
+                            <option value="">Semua Stok</option>
+                            <option value="available">Tersedia</option>
+                            <option value="low">Stok Rendah</option>
+                            <option value="out">Habis</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <select class="form-select" id="priceFilter" onchange="filterProducts()">
+                            <option value="">Semua Harga</option>
+                            <option value="0-50000">< 50K</option>
+                            <option value="50000-100000">50K - 100K</option>
+                            <option value="100000-500000">100K - 500K</option>
+                            <option value="500000+">> 500K</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <select class="form-select" id="sortOrder" onchange="sortProducts()">
+                            <option value="name-asc">Nama (A-Z)</option>
+                            <option value="name-desc">Nama (Z-A)</option>
+                            <option value="price-asc">Harga (Rendah-Tinggi)</option>
+                            <option value="price-desc">Harga (Tinggi-Rendah)</option>
+                            <option value="stock-asc">Stok (Rendah-Tinggi)</option>
+                            <option value="stock-desc">Stok (Tinggi-Rendah)</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Products Table -->
+        <div class="card shadow">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold">Daftar Produk</h6>
+                <small class="text-muted" id="totalRecords">Memuat data...</small>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>
+                                    <input type="checkbox" id="selectAll" onchange="toggleSelectAll()">
+                                </th>
+                                <th>ID</th>
+                                <th>Nama Produk</th>
+                                <th>Harga</th>
+                                <th>Stok</th>
+                                <th>Status</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="productsTableBody">
+                            <tr>
+                                <td colspan="7" class="text-center">
+                                    <div class="spinner-border text-primary" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                    <div class="mt-2">Memuat data produk...</div>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                
+                <!-- Pagination -->
+                <nav class="mt-3" id="paginationContainer">
+                    <!-- Pagination will be dynamically inserted here -->
+                </nav>
+            </div>
+        </div>
+        
+        <!-- Bulk Actions -->
+        <div class="card shadow mt-3" id="bulkActions" style="display: none;">
+            <div class="card-body">
+                <div class="d-flex align-items-center">
+                    <span class="me-3">
+                        <span id="selectedCount">0</span> produk dipilih
+                    </span>
+                    <button class="btn btn-sm btn-danger" onclick="bulkDelete()">
+                        <i class="bi bi-trash me-1"></i>Hapus
+                    </button>
+                    <button class="btn btn-sm btn-warning" onclick="bulkUpdateStock()">
+                        <i class="bi bi-pencil me-1"></i>Update Stok
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Add/Edit Product Modal -->
+        <div class="modal fade" id="productModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="modalTitle">Tambah Produk</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <form id="productForm">
+                            <input type="hidden" id="productId">
+                            
+                            <div class="mb-3">
+                                <label for="productName" class="form-label">Nama Produk *</label>
+                                <input type="text" class="form-control" id="productName" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="productPrice" class="form-label">Harga *</label>
+                                <div class="input-group">
+                                    <span class="input-group-text">Rp</span>
+                                    <input type="number" class="form-control" id="productPrice" min="0" required>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="productStock" class="form-label">Stok *</label>
+                                <input type="number" class="form-control" id="productStock" min="0" required>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label for="productMinStock" class="form-label">Stok Minimum</label>
+                                <input type="number" class="form-control" id="productMinStock" min="0" value="10">
+                                <small class="form-text text-muted">Produk akan muncul di alert stok rendah</small>
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="button" class="btn btn-primary" onclick="saveProduct()">
+                            <i class="bi bi-save me-2"></i>Simpan
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Delete Confirmation Modal -->
+        <div class="modal fade" id="deleteModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">Konfirmasi Hapus</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <p>Apakah Anda yakin ingin menghapus produk ini?</p>
+                        <div class="alert alert-warning">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <strong>Perhatian:</strong> Tindakan ini tidak dapat dibatalkan.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                        <button type="button" class="btn btn-danger" onclick="confirmDelete()">
+                            <i class="bi bi-trash me-2"></i>Hapus
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Product Management JavaScript
+        let allProducts = [];
+        let filteredProducts = [];
+        let selectedProducts = new Set();
+        let currentProductId = null;
+        let currentPage = 0;
+        const pageSize = 10;
+        
+        // Load products
+        async function loadProducts() {
+            try {
+                showLoading();
+                const response = await fetch('/api/products', {
+                    headers: getAuthHeaders()
+                });
+                
+                if (!response.ok) {
+                    throw new Error('Failed to load products');
+                }
+                
+                allProducts = await response.json();
+                filteredProducts = [...allProducts];
+                displayProducts();
+                updateTotalRecords();
+                hideLoading();
+            } catch (error) {
+                console.error('Error loading products:', error);
+                hideLoading();
+                showAlert('Gagal memuat data produk', 'danger');
+            }
+        }
+        
+        // Display products in table
+        function displayProducts() {
+            const tbody = document.getElementById('productsTableBody');
+            const start = currentPage * pageSize;
+            const end = start + pageSize;
+            const pageData = filteredProducts.slice(start, end);
+            
+            if (pageData.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="7" class="text-center text-muted py-4">
+                            <i class="bi bi-inbox fa-3x mb-3"></i>
+                            <div>Tidak ada data produk</div>
+                            <button class="btn btn-primary btn-sm mt-2" onclick="showAddProductModal()">
+                                <i class="bi bi-plus-circle me-1"></i>Tambah Produk Pertama
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            
+            tbody.innerHTML = pageData.map(product => `
+                <tr>
+                    <td>
+                        <input type="checkbox" class="product-checkbox" 
+                               value="${product.id}" 
+                               onchange="toggleProductSelection(${product.id})">
+                    </td>
+                    <td><span class="badge bg-secondary">#${product.id}</span></td>
+                    <td>
+                        <strong>${product.name}</strong>
+                    </td>
+                    <td>Rp ${product.price.toLocaleString('id-ID')}</td>
+                    <td>
+                        <span class="badge ${getStockBadgeClass(product.stock)}">${product.stock}</span>
+                    </td>
+                    <td>
+                        <span class="badge ${getStockStatusClass(product.stock)}">${getStockStatus(product.stock)}</span>
+                    </td>
+                    <td>
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="editProduct(${product.id})">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" onclick="quickSale(${product.id})">
+                                <i class="bi bi-cash"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteProduct(${product.id})">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+            
+            updatePagination();
+        }
+        
+        // Get stock badge class
+        function getStockBadgeClass(stock) {
+            if (stock === 0) return 'bg-danger';
+            if (stock <= 10) return 'bg-warning';
+            return 'bg-success';
+        }
+        
+        // Get stock status class
+        function getStockStatusClass(stock) {
+            if (stock === 0) return 'bg-danger';
+            if (stock <= 10) return 'bg-warning';
+            return 'bg-success';
+        }
+        
+        // Get stock status text
+        function getStockStatus(stock) {
+            if (stock === 0) return 'Habis';
+            if (stock <= 10) return 'Rendah';
+            return 'Tersedia';
+        }
+        
+        // Update pagination
+        function updatePagination() {
+            const totalPages = Math.ceil(filteredProducts.length / pageSize);
+            const container = document.getElementById('paginationContainer');
+            
+            if (totalPages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+            
+            let pagination = '<nav><ul class="pagination justify-content-center">';
+            
+            // Previous button
+            pagination += `
+                <li class="page-item ${currentPage === 0 ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="changePage(${currentPage - 1}); return false;">
+                        <i class="bi bi-chevron-left"></i>
+                    </a>
+                </li>
+            `;
+            
+            // Page numbers
+            for (let i = 0; i < totalPages; i++) {
+                if (i === 0 || i === totalPages - 1 || (i >= currentPage - 1 && i <= currentPage + 1)) {
+                    pagination += `
+                        <li class="page-item ${i === currentPage ? 'active' : ''}">
+                            <a class="page-link" href="#" onclick="changePage(${i}); return false;">${i + 1}</a>
+                        </li>
+                    `;
+                } else if (i === currentPage - 2 || i === currentPage + 2) {
+                    pagination += '<li class="page-item disabled"><span class="page-link">...</span></li>';
+                }
+            }
+            
+            // Next button
+            pagination += `
+                <li class="page-item ${currentPage === totalPages - 1 ? 'disabled' : ''}">
+                    <a class="page-link" href="#" onclick="changePage(${currentPage + 1}); return false;">
+                        <i class="bi bi-chevron-right"></i>
+                    </a>
+                </li>
+            `;
+            
+            pagination += '</ul></nav>';
+            container.innerHTML = pagination;
+        }
+        
+        // Change page
+        function changePage(page) {
+            const totalPages = Math.ceil(filteredProducts.length / pageSize);
+            if (page >= 0 && page < totalPages) {
+                currentPage = page;
+                displayProducts();
+            }
+        }
+        
+        // Update total records
+        function updateTotalRecords() {
+            document.getElementById('totalRecords').textContent = 
+                `Menampilkan ${filteredProducts.length} dari ${allProducts.length} produk`;
+        }
+        
+        // Search products
+        function searchProducts() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            filteredProducts = allProducts.filter(product => 
+                product.name.toLowerCase().includes(searchTerm)
+            );
+            currentPage = 0;
+            displayProducts();
+            updateTotalRecords();
+        }
+        
+        // Filter products
+        function filterProducts() {
+            const stockFilter = document.getElementById('stockFilter').value;
+            const priceFilter = document.getElementById('priceFilter').value;
+            
+            filteredProducts = allProducts.filter(product => {
+                let matchesStock = true;
+                let matchesPrice = true;
+                
+                // Stock filter
+                if (stockFilter) {
+                    if (stockFilter === 'available') matchesStock = product.stock > 0;
+                    else if (stockFilter === 'low') matchesStock = product.stock > 0 && product.stock <= 10;
+                    else if (stockFilter === 'out') matchesStock = product.stock === 0;
+                }
+                
+                // Price filter
+                if (priceFilter) {
+                    if (priceFilter === '0-50000') matchesPrice = product.price < 50000;
+                    else if (priceFilter === '50000-100000') matchesPrice = product.price >= 50000 && product.price < 100000;
+                    else if (priceFilter === '100000-500000') matchesPrice = product.price >= 100000 && product.price < 500000;
+                    else if (priceFilter === '500000+') matchesPrice = product.price >= 500000;
+                }
+                
+                return matchesStock && matchesPrice;
+            });
+            
+            currentPage = 0;
+            displayProducts();
+            updateTotalRecords();
+        }
+        
+        // Sort products
+        function sortProducts() {
+            const sortOrder = document.getElementById('sortOrder').value;
+            const [field, order] = sortOrder.split('-');
+            
+            filteredProducts.sort((a, b) => {
+                let aVal = a[field === 'name' ? 'name' : field === 'price' ? 'price' : 'stock'];
+                let bVal = b[field === 'name' ? 'name' : field === 'price' ? 'price' : 'stock'];
+                
+                if (typeof aVal === 'string') {
+                    aVal = aVal.toLowerCase();
+                    bVal = bVal.toLowerCase();
+                }
+                
+                if (order === 'asc') {
+                    return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+                } else {
+                    return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+                }
+            });
+            
+            displayProducts();
+        }
+        
+        // Show add product modal
+        function showAddProductModal() {
+            document.getElementById('modalTitle').textContent = 'Tambah Produk';
+            document.getElementById('productId').value = '';
+            document.getElementById('productForm').reset();
+            new bootstrap.Modal(document.getElementById('productModal')).show();
+        }
+        
+        // Edit product
+        function editProduct(id) {
+            const product = allProducts.find(p => p.id === id);
+            if (!product) return;
+            
+            document.getElementById('modalTitle').textContent = 'Edit Produk';
+            document.getElementById('productId').value = product.id;
+            document.getElementById('productName').value = product.name;
+            document.getElementById('productPrice').value = product.price;
+            document.getElementById('productStock').value = product.stock;
+            
+            new bootstrap.Modal(document.getElementById('productModal')).show();
+        }
+        
+        // Save product
+        async function saveProduct() {
+            const id = document.getElementById('productId').value;
+            const product = {
+                name: document.getElementById('productName').value,
+                price: parseInt(document.getElementById('productPrice').value),
+                stock: parseInt(document.getElementById('productStock').value)
+            };
+            
+            try {
+                showLoading();
+                const url = id ? `/api/products/${id}` : '/api/products';
+                const method = id ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: getAuthHeaders(),
+                    body: JSON.stringify(product)
+                });
+                
+                if (response.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('productModal')).hide();
+                    showAlert(id ? 'Produk berhasil diupdate' : 'Produk berhasil ditambahkan', 'success');
+                    await loadProducts();
+                } else {
+                    throw new Error('Failed to save product');
+                }
+                hideLoading();
+            } catch (error) {
+                console.error('Error saving product:', error);
+                hideLoading();
+                showAlert('Gagal menyimpan produk', 'danger');
+            }
+        }
+        
+        // Delete product
+        function deleteProduct(id) {
+            currentProductId = id;
+            new bootstrap.Modal(document.getElementById('deleteModal')).show();
+        }
+        
+        // Confirm delete
+        async function confirmDelete() {
+            try {
+                showLoading();
+                const response = await fetch(`/api/products/${currentProductId}`, {
+                    method: 'DELETE',
+                    headers: getAuthHeaders()
+                });
+                
+                if (response.ok) {
+                    bootstrap.Modal.getInstance(document.getElementById('deleteModal')).hide();
+                    showAlert('Produk berhasil dihapus', 'success');
+                    await loadProducts();
+                } else {
+                    throw new Error('Failed to delete product');
+                }
+                hideLoading();
+            } catch (error) {
+                console.error('Error deleting product:', error);
+                hideLoading();
+                showAlert('Gagal menghapus produk', 'danger');
+            }
+        }
+        
+        // Quick sale
+        function quickSale(productId) {
+            window.location.href = `/transactions?action=sale&productId=${productId}`;
+        }
+        
+        // Refresh table
+        function refreshTable() {
+            loadProducts();
+        }
+        
+        // Export data
+        function exportData() {
+            const csv = convertToCSV(filteredProducts);
+            downloadCSV(csv, 'products.csv');
+            showAlert('Data berhasil diexport', 'success');
+        }
+        
+        // Convert to CSV
+        function convertToCSV(data) {
+            const headers = ['ID', 'Nama Produk', 'Harga', 'Stok'];
+            const rows = data.map(product => [
+                product.id,
+                product.name,
+                product.price,
+                product.stock
+            ]);
+            
+            return [headers, ...rows].map(row => row.join(',')).join('\n');
+        }
+        
+        // Download CSV
+        function downloadCSV(csv, filename) {
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            link.click();
+        }
+        
+        // Bulk actions
+        function toggleSelectAll() {
+            const selectAll = document.getElementById('selectAll');
+            const checkboxes = document.querySelectorAll('.product-checkbox');
+            
+            checkboxes.forEach(checkbox => {
+                checkbox.checked = selectAll.checked;
+                const productId = parseInt(checkbox.value);
+                if (selectAll.checked) {
+                    selectedProducts.add(productId);
+                } else {
+                    selectedProducts.delete(productId);
+                }
+            });
+            
+            updateBulkActions();
+        }
+        
+        function toggleProductSelection(id) {
+            if (selectedProducts.has(id)) {
+                selectedProducts.delete(id);
+            } else {
+                selectedProducts.add(id);
+            }
+            updateBulkActions();
+        }
+        
+        function updateBulkActions() {
+            const bulkActions = document.getElementById('bulkActions');
+            const selectedCount = document.getElementById('selectedCount');
+            
+            if (selectedProducts.size > 0) {
+                bulkActions.style.display = 'block';
+                selectedCount.textContent = selectedProducts.size;
+            } else {
+                bulkActions.style.display = 'none';
+            }
+        }
+        
+        function bulkDelete() {
+            if (confirm(`Apakah Anda yakin ingin menghapus ${selectedProducts.size} produk?`)) {
+                showAlert('Bulk delete akan segera hadir!', 'info');
+            }
+        }
+        
+        function bulkUpdateStock() {
+            showAlert('Bulk update akan segera hadir!', 'info');
+        }
+        
+        // Load products when page loads
+        document.addEventListener('DOMContentLoaded', loadProducts);
+    </script>
+</body>
+</html>
