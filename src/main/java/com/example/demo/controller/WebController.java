@@ -42,4 +42,9 @@ public class WebController {
     public String transactionsList(Model model) {
         return "transactions/list";
     }
+
+    @GetMapping("/dashboard_standalone")
+    public String dashboardStandalone(Model model) {
+        return "dashboard_standalone";
+    }
 }

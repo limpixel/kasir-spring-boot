@@ -22,7 +22,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .authorizeHttpRequests(authz -> authz
                 .requestMatchers("/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html", "/api-docs/**", "/h2-console/**").permitAll()
-                .requestMatchers("/login", "/static/**", "/css/**", "/js/**", "/images/**").permitAll()
+                .requestMatchers("/login", "/static/**", "/css/**", "/js/**", "/images/**", "/test/**", "/dashboard_standalone.html").permitAll()
                 .requestMatchers("/api/products/**").hasAnyRole("ADMIN", "USER")
                 .requestMatchers("/api/transactions/**").hasAnyRole("ADMIN", "USER")
                 .requestMatchers("/", "/dashboard", "/products/**", "/transactions/**").hasAnyRole("ADMIN", "USER")
